@@ -1,5 +1,5 @@
 # About
-Simple create snapshot and restore server from snapshots
+Simple create snapshot and restore server from snapshots in hetzner cloud
 
 # Commands
 Create snapshot
