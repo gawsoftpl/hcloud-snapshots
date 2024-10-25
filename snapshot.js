@@ -89,6 +89,11 @@ async function getServers(projectPrefix = "") {
 
 (async () => {
     const servers = await getServers(project_prefix);
+    if (!servers?.length) {
+        console.error("Cant find servers to snapshot")
+        process.exit(1)
+    }
+
     const jobs = servers.map(server => createSnapshot(server))
     const response = await Promise.all(jobs)
     if (response.every(response => response)) {
