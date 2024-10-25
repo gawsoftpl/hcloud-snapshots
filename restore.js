@@ -96,6 +96,11 @@ async function getImages() {
 
 (async () => {
     const images = await getImages();
+    if (!images?.length) {
+        console.error("Cant find images to restore")
+        process.exit(1)
+    }
+
     const jobs = images.map(image => createServer(image))
     const response = await Promise.all(jobs)
     if (response.every(response => response)) {
