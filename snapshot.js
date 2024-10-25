@@ -47,10 +47,11 @@ async function createSnapshot(server) {
                 name: server.name,
                 project: project_prefix,
                 auto_snapshot: "true",
-                private_net: server.private_net.map(private_net => private_net.network).join(';'),
-                private_ips: server.private_net.map(private_net => private_net.ip).join(';'),
+                private_net: server.private_net.map(private_net => private_net.network).join('-'),
+                private_ips: server.private_net.map(private_net => private_net.ip).join('-'),
                 instance_type: server.server_type.name,
                 location: server.datacenter.location.name,
+                volumes: server.volumes.map(volume => volume).join('-'),
                 ...convertServerLabels(server.labels)
             }
         });

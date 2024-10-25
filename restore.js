@@ -12,6 +12,8 @@ if (!project_prefix) {
     process.exit(1)
 }
 
+// Use force networks eq: 11111-22222, will attach to both network
+const networks_force = process.env.NETWORKS_FORCE
 
 const ssh_key_name = process.env.SSH_KEY_NAME
 
@@ -21,11 +23,13 @@ if (!ssh_key_name) {
 }
 
 async function attachServerToNetwork(server_id, network_id, private_ip){
+
     const attachToPrivateNetworkResponse = await axiosInstance.post(`/servers/${server_id}/actions/attach_to_network`, {
-        network: network_id,
-        ip: private_ip
+        network: parseInt(network_id),
+        ip: private_ip,
+        alias_ips: [],
     })
-    return await waitForAction(attachToPrivateNetworkResponse?.data?.action?.id, 'servers')
+    return await waitForAction(attachToPrivateNetworkResponse?.data?.action?.id, 'networks')
 }
 
 async function powerOnServer(id) {
@@ -35,16 +39,17 @@ async function powerOnServer(id) {
 
 // Methods
 async function createServer(image) {
-
     try{
-        let networks = image.labels.private_net.split(';')
-        let private_ips = image.label.private_ips.split(';')
+        let networks = networks_force ? networks_force.split('-') : image.labels.private_net.split('-')
+        let private_ips = image.labels.private_ips.split('-')
+        const volumes = image.labels?.volumes?.split('-') ?? []
 
         const response = await axiosInstance.post('/servers', {
             image: image.id,
-            automount: true,
+            automount: volumes.length > 0,
+            volumes: volumes,
             name: image.labels.name,
-            start_after_create: true,
+            start_after_create: false,
             labels: decodeServerLabels(image.labels),
             location: image.labels.location,
             server_type: image.labels.instance_type,
@@ -53,17 +58,19 @@ async function createServer(image) {
             ]
         });
         if (response.status == 201){
-            console.log(`Creating server ${image.labels.name}`);
+            console.log(`Creating server ${image.labels.name} id: ${response?.data?.action?.id}`);
             const serverCreated = await waitForAction(response?.data?.action?.id, 'servers')
             if (serverCreated) {
                 // attach to private network with static ip
-                networks.map(async(network_id, index) => {
-                    await attachServerToNetwork(serverCreated.data.server.id, network_id, private_ips[index])
-                    return await powerOnServer(serverCreated.data.server.id)
-                })
+                await Promise.all(networks.map((network_id, index) => {
+                    return attachServerToNetwork(response.data.server.id, network_id, private_ips[index])
+                }))
+                return await powerOnServer(response.data.server.id)
+
             }
         }
     }catch(err){
+        console.error(err?.message)
         console.error(JSON.stringify(err?.response?.data))
     }
 
@@ -81,6 +88,7 @@ async function getImages() {
 
         return response.data.images
     } catch (error) {
+        console.log(error.response)
         console.error('Error fetching servers:', error.response ? JSON.stringify(error.response.data) : error.message);
         return [];
     }
@@ -89,7 +97,6 @@ async function getImages() {
 (async () => {
     const images = await getImages();
     const jobs = images.map(image => createServer(image))
-
     const response = await Promise.all(jobs)
     if (response.every(response => response)) {
         console.log("Restore servers from snapshots completed")
