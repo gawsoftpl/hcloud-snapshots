@@ -1,3 +1,5 @@
+#!/usr/bin/node
+
 const { axiosInstance } = require('./axios.instance')
 const { waitForAction } = require('./actions')
 const {decodeServerLabels} = require("./utils");
@@ -10,7 +12,6 @@ if (!project_prefix) {
     process.exit(1)
 }
 
-const network_force = process.env.NETWORK_FORCE
 
 const ssh_key_name = process.env.SSH_KEY_NAME
 
@@ -19,17 +20,29 @@ if (!ssh_key_name) {
     process.exit(1)
 }
 
+async function attachServerToNetwork(server_id, network_id, private_ip){
+    const attachToPrivateNetworkResponse = await axiosInstance.post(`/servers/${server_id}/actions/attach_to_network`, {
+        network: network_id,
+        ip: private_ip
+    })
+    return await waitForAction(attachToPrivateNetworkResponse?.data?.action?.id, 'servers')
+}
+
+async function powerOnServer(id) {
+    const powerOnServerResponse = await axiosInstance.post(`/servers/${id}/actions/poweron`)
+    return await waitForAction(powerOnServerResponse?.data?.action?.id, 'servers')
+}
+
 // Methods
 async function createServer(image) {
 
     try{
         let networks = image.labels.private_net.split(';')
-        if (network_force) networks = network_force.split(';')
+        let private_ips = image.label.private_ips.split(';')
 
         const response = await axiosInstance.post('/servers', {
             image: image.id,
             automount: true,
-            networks: networks,
             name: image.labels.name,
             start_after_create: true,
             labels: decodeServerLabels(image.labels),
@@ -41,7 +54,14 @@ async function createServer(image) {
         });
         if (response.status == 201){
             console.log(`Creating server ${image.labels.name}`);
-            return await waitForAction(response?.data?.action?.id, 'servers')
+            const serverCreated = await waitForAction(response?.data?.action?.id, 'servers')
+            if (serverCreated) {
+                // attach to private network with static ip
+                networks.map(async(network_id, index) => {
+                    await attachServerToNetwork(serverCreated.data.server.id, network_id, private_ips[index])
+                    return await powerOnServer(serverCreated.data.server.id)
+                })
+            }
         }
     }catch(err){
         console.error(JSON.stringify(err?.response?.data))

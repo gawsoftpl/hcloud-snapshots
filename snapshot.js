@@ -1,3 +1,5 @@
+#!/usr/bin/node
+
 const { axiosInstance } = require('./axios.instance')
 const { waitForAction } = require('./actions')
 const {convertServerLabels} = require("./utils");
@@ -46,6 +48,7 @@ async function createSnapshot(server) {
                 project: project_prefix,
                 auto_snapshot: "true",
                 private_net: server.private_net.map(private_net => private_net.network).join(';'),
+                private_ips: server.private_net.map(private_net => private_net.ip).join(';'),
                 instance_type: server.server_type.name,
                 location: server.datacenter.location.name,
                 ...convertServerLabels(server.labels)
