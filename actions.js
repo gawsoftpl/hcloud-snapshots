@@ -36,9 +36,10 @@ async function waitForShutdown(id)
                     resolve(true)
                     close()
                 }
-                if (index > 25){
+                if (index > 30){
                     close()
-                    resolve(true)
+                    console.error(`Waiting for shutdown server ${id} timeout`)
+                    resolve(false)
                 }
             }catch(err){
                 close()
