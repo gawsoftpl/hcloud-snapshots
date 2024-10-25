@@ -18,3 +18,18 @@ Restore snapshot
 ```sh
 PROJECT_PREFIX=test-project SSH_KEY_NAME=ssh-test node restore.js
 ```
+
+# ENV
+
+## Required
+```sh
+PROJECT_PREFIX="" #projectprefix name
+HCLOUD_TOKEN="xxx" # Token to hcloud 
+SSH_KEY_NAME="test" # SSH Key name
+```
+
+## Optional
+```sh
+NO_DELETE_SERVER=1 # Do not delete server after create dump
+NETWORKS_FORCE="network-1-network-2" # Network force assigned to instances joined by "-"
+```
