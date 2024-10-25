@@ -1,8 +1,8 @@
 #!/usr/bin/node
 
 const { axiosInstance } = require('./axios.instance')
-const { waitForAction } = require('./actions')
-const {convertServerLabels} = require("./utils");
+const { waitForAction, waitForShutdown } = require('./actions')
+const { convertServerLabels } = require("./utils");
 
 const project_prefix = process.env.PROJECT_PREFIX
 
@@ -31,10 +31,10 @@ async function createSnapshot(server) {
         const shutdownResponse = await axiosInstance.post(`/servers/${server.id}/actions/shutdown`);
         await waitForAction(shutdownResponse?.data?.action?.id, 'servers')
 
-        if (shutdownResponse.status !== 201) {
-            const powerOffResponse = await axiosInstance.post(`/servers/${server.id}/actions/poweroff`);
-            await waitForAction(powerOffResponse?.data?.action?.id, 'servers')
-        }
+        await waitForShutdown(server.id)
+
+        const powerOffResponse = await axiosInstance.post(`/servers/${server.id}/actions/poweroff`);
+        await waitForAction(powerOffResponse?.data?.action?.id, 'servers')
 
         // Create snapshot
         const dateOptions = { year: 'numeric', month: 'long', day: 'numeric' }
@@ -88,6 +88,7 @@ async function getServers(projectPrefix = "") {
 }
 
 (async () => {
+
     const servers = await getServers(project_prefix);
     if (!servers?.length) {
         console.error("Cant find servers to snapshot")

@@ -15,6 +15,39 @@ async function getAction(id, typeName) {
     return null
 }
 
+async function checkServerIsPowerOff(id) {
+    const response = await axiosInstance.get(`/servers/${id}`)
+    return response?.data?.server?.status == 'off'
+}
+
+async function waitForShutdown(id)
+{
+    return new Promise((resolve) => {
+        let index=0;
+        const close = () => {
+            if (interval) clearInterval(interval)
+        }
+
+        const interval = setInterval(async() => {
+            try{
+                console.log(`Waiting for shutdown server ${id}`)
+                index++
+                if (await checkServerIsPowerOff(id)){
+                    resolve(true)
+                    close()
+                }
+                if (index > 25){
+                    close()
+                    resolve(true)
+                }
+            }catch(err){
+                close()
+                resolve(false)
+            }
+        }, 5000)
+    })
+}
+
 async function waitForAction(id, typeName) {
     return new Promise((resolve, reject) => {
         let interval;
@@ -23,6 +56,7 @@ async function waitForAction(id, typeName) {
             const check = async() => {
                 index++;
                 const response = await getAction(id, typeName)
+
                 if (response) {
                     if (response.status == 'success') {
                         resolve(true)
@@ -50,5 +84,6 @@ async function waitForAction(id, typeName) {
 
 module.exports = {
     getAction,
+    waitForShutdown,
     waitForAction
 }

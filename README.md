@@ -30,6 +30,7 @@ SSH_KEY_NAME="test" # SSH Key name
 
 ## Optional
 ```sh
+USER_DATA="#cloud-config\nruncmd:\n- [touch, /root/cloud-init-worked]\n"
 NO_DELETE_SERVER=1 # Do not delete server after create dump
 NETWORKS_FORCE="network-1-network-2" # Network force assigned to instances joined by "-"
 ```

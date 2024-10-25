@@ -1,6 +1,6 @@
 {
   "name": "hcloud-snapshots",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "main": "snapshot.js",
   "keywords": [],
   "author": "gawsoft.com",
