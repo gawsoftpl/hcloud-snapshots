@@ -8,4 +8,6 @@ COPY . .
 
 RUN npm install
 
+RUN apk update && apk add --no-cache curl bash
+
 USER node
