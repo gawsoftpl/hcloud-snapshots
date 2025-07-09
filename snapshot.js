@@ -57,7 +57,7 @@ async function createSnapshot(server) {
         });
 
         if (responseCreateImage.status == 201){
-            const snapshotCreateResponse = await waitForAction(responseCreateImage?.data?.action?.id, 'images')
+            const snapshotCreateResponse = await waitForAction(responseCreateImage?.data?.action?.id, 'servers')
             if (snapshotCreateResponse) {
                 if (do_not_delete) return true;
                 const deleteInstance = await axiosInstance.delete(`/servers/${server.id}`)
