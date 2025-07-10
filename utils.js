@@ -14,7 +14,10 @@ const decodeServerLabels = (labels) => {
     }, {})
 }
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 module.exports = {
     decodeServerLabels,
-    convertServerLabels
+    convertServerLabels,
+    sleep
 }

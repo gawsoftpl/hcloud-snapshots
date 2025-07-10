@@ -2,10 +2,11 @@
 
 const { axiosInstance } = require('./axios.instance')
 const { waitForAction } = require('./actions')
-const {decodeServerLabels} = require("./utils");
+const {decodeServerLabels, sleep} = require("./utils");
 
 // Variables
 const project_prefix = process.env.PROJECT_PREFIX
+const availableLocations = (process.env.AVAILABLE_LOCATIONS ?? 'nbg1,fsn1,hel1').split(',')
 
 if (!project_prefix) {
     console.error("No set env PROJECT_PREFIX")
@@ -41,53 +42,78 @@ async function powerOnServer(id) {
 
 // Methods
 async function createServer(image) {
-    try{
-        let networks = networks_force ? networks_force.split('-') : image.labels.private_net.split('-')
-        let private_ips = image.labels.private_ips.split('-')
-        const volumes = image.labels?.volumes?.split('-') ?? []
-        const hasVolumes = volumes?.length > 0 && volumes[0].length > 0
-        const hasNetworks = networks?.length > 0 && networks[0].length > 0
 
-        const response = await axiosInstance.post('/servers', {
-            image: image.id,
-            automount: hasVolumes,
-            volumes: hasVolumes ? volumes : undefined,
-            name: image.labels.name,
-            start_after_create: false,
-            labels: decodeServerLabels(image.labels),
-            location: image.labels.location,
-            server_type: image.labels.instance_type,
-            user_data: user_data ? user_data.trim().replace(/\r?\n/g, "\n") + "\n" : undefined,
-            //user_data":"#cloud-config\nruncmd:\n- [touch, /root/cloud-init-worked]\n"
-            ssh_keys: [
-                ssh_key_name
-            ]
-        });
-        if (response.status == 201){
-            console.log(`Creating server ${image.labels.name} id: ${response?.data?.action?.id}`);
-            const serverCreated = await waitForAction(response?.data?.action?.id, 'servers')
-            if (serverCreated) {
-                // attach to private network with static ip
-                if (hasNetworks) {
-                    await Promise.all(networks.map((network_id, index) => {
-                        return attachServerToNetwork(response.data.server.id, network_id, private_ips[index])
-                    }))
-                }
+    let tryCounter = 0;
+    const itemAvailableLocations = [...availableLocations];
+    itemAvailableLocations.unshift(image.labels.location);
 
-                if (await powerOnServer(response.data.server.id)) {
-                    return response.data.server
-                }else{
-                    return null
-                }
+    const runRequest = async() => {
+        try {
 
+            const locationGenerate = () => {
+                return itemAvailableLocations[tryCounter]
             }
+
+            let networks = networks_force ? networks_force.split('-') : image.labels.private_net.split('-')
+            let private_ips = image.labels.private_ips.split('-')
+            const volumes = image.labels?.volumes?.split('-') ?? []
+            const hasVolumes = volumes?.length > 0 && volumes[0].length > 0
+            const hasNetworks = networks?.length > 0 && networks[0].length > 0
+
+            const response = await axiosInstance.post('/servers', {
+                image: image.id,
+                automount: hasVolumes,
+                volumes: hasVolumes ? volumes : undefined,
+                name: image.labels.name,
+                start_after_create: false,
+                labels: decodeServerLabels(image.labels),
+                location: locationGenerate(),
+                server_type: image.labels.instance_type,
+                user_data: user_data ? user_data.trim().replace(/\r?\n/g, "\n") + "\n" : undefined,
+                //user_data":"#cloud-config\nruncmd:\n- [touch, /root/cloud-init-worked]\n"
+                ssh_keys: [
+                    ssh_key_name
+                ]
+            }, {
+                validateStatus: (status) => [201, 412].includes(status)
+            });
+            if (response.status == 201) {
+                console.log(`Creating server ${image.labels.name} id: ${response?.data?.action?.id}`);
+                const serverCreated = await waitForAction(response?.data?.action?.id, 'servers')
+                if (serverCreated) {
+                    // attach to private network with static ip
+                    if (hasNetworks) {
+                        await Promise.all(networks.map((network_id, index) => {
+                            return attachServerToNetwork(response.data.server.id, network_id, private_ips[index])
+                        }))
+                    }
+
+                    if (await powerOnServer(response.data.server.id)) {
+                        return response.data.server
+                    } else {
+                        return null
+                    }
+
+                }
+            } else if (response.status == 412) {
+                console.log(`No resources for ${image.labels.instance_type} retry ${tryCounter}, try next location ${itemAvailableLocations}`)
+                if (tryCounter >= itemAvailableLocations.length)
+                    return false;
+
+                await sleep(5000)
+                tryCounter++;
+                return await runRequest()
+            }
+        } catch (err) {
+            console.error(err?.message)
+            console.error(JSON.stringify(err?.response?.data))
         }
-    }catch(err){
-        console.error(err?.message)
-        console.error(JSON.stringify(err?.response?.data))
+
+        return false
+
     }
 
-    return false
+    return await runRequest()
 }
 
 async function getImages() {
